@@ -155,10 +155,10 @@ type_clf = 'full'
 mode = 'recon'
 
 epoch = 500
-batch_size = 50
+batch_size = 128
 learning_rate = 0.0001
 
-lw_pred = 100
+lw_pred = 10
 lw_recon = 1
 
 num_ref = 128
@@ -210,6 +210,8 @@ with tf.device('/device:GPU:' + str(NUM_GPU)):
                     [Mean(name="loss"),
                      Mean(name="loss_pred"),
                      Mean(name="loss_recon"),
+                     Mean(name="loss_nll"),
+                     Mean(name="loss_kl"),
                     ],
                 "pred":
                    [BinaryAccuracy(threshold=0.5, name="Accuracy"),
@@ -217,7 +219,7 @@ with tf.device('/device:GPU:' + str(NUM_GPU)):
                     AUC(curve='PR', name="AUPRC"),
                     Precision(thresholds=0.5, name="Precision"),
                     Recall(thresholds=0.5, name="Recall"),
-                    F1Score(num_classes=1, average='macro', threshold=0.5, name="F1_score")
+                    F1Score(num_classes=1, average='macro', threshold=0.5, name="F1_score"),
                     ],
                "recon":
                    [Mean(name="MAE"),
@@ -247,8 +249,8 @@ else:
     best_val = np.inf
     early_stop_patience = 100
 
-history_train = [[], [], [], [], [], [], [], [], [], [], [], []]
-history_valid = [[], [], [], [], [], [], [], [], [], [], [], []]
+history_train = [[], [], [], [], [], [], [], [], [], [], [], [], [], []]
+history_valid = [[], [], [], [], [], [], [], [], [], [], [], [], [], []]
 
 
 #%%
@@ -266,7 +268,7 @@ for ep in range(1, epoch + 1):
             Y_recon_hat = Y_hat["recon"]
 
             loss_pred = binary_crossentropy(Y_pred, Y_pred_hat, from_logits=False)
-            loss_recon = utils.recon_loss(Y_recon, Y_recon_hat, ep, wait_kl=10)
+            loss_recon, loss_nll, loss_kl = utils.recon_loss(Y_recon, Y_recon_hat, ep, wait_kl=10)
 
             loss = lw_pred * loss_pred + lw_recon * loss_recon
             loss_mean = tf.reduce_mean(loss)
@@ -278,7 +280,7 @@ for ep in range(1, epoch + 1):
         metric_mae = utils.MSE(Y_recon, Y_recon_hat)
         metric_mre = utils.MRE(Y_recon, Y_recon_hat)
 
-        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon]):
+        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon, loss_nll, loss_kl]):
             metric.update_state(loss_type)
         for metric in metrics["pred"]:
             metric.update_state(Y_pred, Y_pred_hat)
@@ -319,7 +321,7 @@ for ep in range(1, epoch + 1):
         Y_recon_hat = Y_hat["recon"]
 
         loss_pred = binary_crossentropy(Y_pred, Y_pred_hat, from_logits=False)
-        loss_recon = utils.recon_loss(Y_recon, Y_recon_hat, ep, wait_kl=10)
+        loss_recon, loss_nll, loss_kl = utils.recon_loss(Y_recon, Y_recon_hat, ep, wait_kl=10)
 
         loss = lw_pred * loss_pred + lw_recon * loss_recon
 
@@ -327,7 +329,7 @@ for ep in range(1, epoch + 1):
         metric_mae = utils.MSE(Y_recon, Y_recon_hat)
         metric_mre = utils.MRE(Y_recon, Y_recon_hat)
 
-        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon]):
+        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon, loss_nll, loss_kl]):
             metric.update_state(loss_type)
         for metric in metrics["pred"]:
             metric.update_state(Y_pred, Y_pred_hat)
@@ -380,7 +382,7 @@ for ep in range(1, epoch + 1):
 
 #%%
 plt_filepath = os.path.join('.', 'results_learning', dataset_full, 'model_tuning')
-utils.plot_learning(history_train, history_valid, figsize=(15, 15), save=True, filepath=plt_filepath, filename=filename)
+utils.plot_learning(history_train, history_valid, figsize=(15, 20), save=True, filepath=plt_filepath, filename=filename)
 
 
 #%%
@@ -515,3 +517,6 @@ with open(results_filepath, 'a') as f:
             'test_AUPRC_std',
             'test_AUPRC_ci']
     writer.writerow(head)
+
+
+#%%

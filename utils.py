@@ -69,7 +69,7 @@ def recon_loss(y_true, y_pred, epoch=None, wait_kl=None):
 
     loss = - (logpx - kl_coef * kl)
 
-    return loss
+    return loss, -logpx, kl
 
 
 def MSE(y_true, y_pred):
@@ -90,7 +90,7 @@ def MSE(y_true, y_pred):
 
     X_pred = y_pred["outputs_recon"]
 
-    numerator = tf.reduce_sum(tf.math.square((X_true - X_pred) * X_denorm) * m, axis=(1, 2))
+    numerator = tf.reduce_sum(tf.math.square(X_true - X_pred) * m, axis=(1, 2))
     denominator = tf.reduce_sum(m, axis=(1, 2)) + 1e-5
     values = numerator / denominator
 
@@ -145,18 +145,18 @@ def MRE(y_true, y_pred):
     return values
 
 
-def plot_learning(history_train, history_valid, figsize=(15, 20), save=False, filepath='.', filename="Figure"):
+def plot_learning(history_train, history_valid, figsize=(20, 20), save=False, filepath='.', filename="Figure"):
     mpl.rcParams['figure.figsize'] = figsize
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     plt.clf()
 
-    name = ['Loss', 'Loss_pred', 'Loss_recon',
+    name = ['Loss', 'Loss_pred', 'Loss_recon', 'Loss_nll', 'Loss_kl',
             'Accuracy', 'AUROC', 'AUPRC',
             'Precision', 'Recall', 'F1 score',
             'MSE', 'MAE', 'MRE']
 
     for i in range(len(name)):
-        plt.subplot(4, 3, i + 1)
+        plt.subplot(4, 4, i + 1)
         plt.plot(np.arange(1, len(history_train[i])+1), history_train[i], color=colors[0], label='Train')
         plt.plot(np.arange(1, len(history_valid[i])+1), history_valid[i], color=colors[1], linestyle="--", label='Valid')
 
@@ -174,7 +174,8 @@ def plot_learning(history_train, history_valid, figsize=(15, 20), save=False, fi
 def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False, save=False, filepath='.', filename="Figure"):
     """
     Returns:
-        results -- (Loss, Loss_pred, Loss_recon, Accuracy, AUROC, AUPRC, Precision, Recall, F1 Score, MSE, MAE, MRE)
+        results -- (Loss, Loss_pred, Loss_recon, Loss_nll, Loss_kl,
+                    Accuracy, AUROC, AUPRC, Precision, Recall, F1 Score, MSE, MAE, MRE)
     """
 
     lw_pred, lw_recon = loss_weight
@@ -190,7 +191,7 @@ def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False
         Y_recon_hat = Y_hat["recon"]
 
         loss_pred = binary_crossentropy(Y_pred, Y_pred_hat, from_logits=False)
-        loss_recon = utils.recon_loss(Y_recon, Y_recon_hat)
+        loss_recon, loss_nll, loss_kl = utils.recon_loss(Y_recon, Y_recon_hat)
 
         loss = lw_pred * loss_pred + lw_recon * loss_recon
 
@@ -198,7 +199,7 @@ def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False
         metric_mae = MSE(Y_recon, Y_recon_hat)
         metric_mre = MRE(Y_recon, Y_recon_hat)
 
-        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon]):
+        for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon, loss_nll, loss_kl]):
             metric.update_state(loss_type)
         for metric in metrics["pred"]:
             metric.update_state(Y_pred, Y_pred_hat)
@@ -217,29 +218,29 @@ def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False
 
     predict_base = (Y_pred_hat >= 0.5).astype('int')
 
-    auroc = results[4]
-    auprc = results[5]
+    auroc = results[6]
+    auprc = results[7]
 
     roc_results = roc_curve(Y_pred, Y_pred_hat)
     pr_results = precision_recall_curve(Y_pred, Y_pred_hat)
 
     print("\n===============[{}]===============".format(stage))
-    print("{} {:<10}".format(stage, "MSE"), results[9])
-    print("{} {:<10}".format(stage, "MAE"), results[10])
-    print("{} {:<10}".format(stage, "MRE4"), results[11])
+    print("{} {:<10}".format(stage, "MSE"), results[11])
+    print("{} {:<10}".format(stage, "MAE"), results[12])
+    print("{} {:<10}".format(stage, "MRE4"), results[13])
     print()
-    print("{} {:<10}".format(stage, "AUROC"), results[4])
-    print("{} {:<10}".format(stage, "AUPRC"), results[5])
+    print("{} {:<10}".format(stage, "AUROC"), results[6])
+    print("{} {:<10}".format(stage, "AUPRC"), results[7])
     print()
 
     print("{} Confusion Matrix (Threshold >= 0.5)".format(stage))
     print(confusion_matrix(Y_pred, predict_base))
     print()
 
-    print("{} {:<10}".format(stage, "Accuracy"), results[3])
-    print("{} {:<10}".format(stage, "Precision"), results[6])
-    print("{} {:<10}".format(stage, "Recall"), results[7])
-    print("{} {:<10}".format(stage, "F1"), results[8])
+    print("{} {:<10}".format(stage, "Accuracy"), results[5])
+    print("{} {:<10}".format(stage, "Precision"), results[8])
+    print("{} {:<10}".format(stage, "Recall"), results[9])
+    print("{} {:<10}".format(stage, "F1"), results[10])
     print()
 
     optimal_idx = np.argmax(roc_results[1] - roc_results[0])
