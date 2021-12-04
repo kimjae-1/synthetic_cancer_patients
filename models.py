@@ -135,7 +135,7 @@ class mTAND_enc(Layer):
         inputs_t = inputs["inputs_t"]
         inputs_time = inputs["inputs_time"]
 
-        query = self.time_embedding(tf.expand_dims(tf.linspace(0.0, 1.0, self.num_ref), axis=0))
+        query = self.time_embedding(tf.expand_dims(tf.linspace(0.0, 5.0, self.num_ref), axis=0))
         key = self.time_embedding(inputs_time)
         value = inputs_t[:, 0, :, :]
         mask = inputs_t[:, 1, :, :]
@@ -199,7 +199,7 @@ class mTAND_dec(Layer):
         outputs_rnn = self.rnn(latent)
 
         query = self.time_embedding(outputs_time)
-        key = self.time_embedding(tf.expand_dims(tf.linspace(0.0, 1.0, self.num_ref), axis=0))
+        key = self.time_embedding(tf.expand_dims(tf.linspace(0.0, 5.0, self.num_ref), axis=0))
 
         outputs_attn, weight_attn = self.attn(query, key, outputs_rnn)
         self.weight_attn = weight_attn
