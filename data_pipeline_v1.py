@@ -240,7 +240,11 @@ def clrc_diag(filepath=os.path.join('/', 'home', 'mincheol', 'ext', 'hdd1', 'dat
     data_valid = (X_0_valid, X_t_valid, X_info_valid, y_valid)
     data_test = (X_0_test, X_t_test, X_info_test, y_test)
 
-    return data_train, data_valid, data_test
+    X_0_train_normalize = (X_0_train_min, X_0_train_max, X_0_cat_axis)
+    X_t_train_normalize = (X_t_train_min, X_t_train_max, X_t_cat_axis)
+    data_normalize = (X_0_train_normalize, X_t_train_normalize)
+
+    return data_train, data_valid, data_test, data_normalize
 
 
 def normalization_0(data, cat_axis, data_min=None, data_max=None, train=True):

@@ -33,7 +33,7 @@ def set_gpu(num_gpu=0):
     tf.config.experimental.set_memory_growth(gpus[num_gpu], True)
 
 
-def combine_general_ts(data_train, data_valid, data_test):
+def combine_general_ts(data_train, data_valid, data_test, data_normalize):
     """
     Var time: General Descriptors / Time Series
     Var type: Continuous / Categorical
@@ -44,13 +44,18 @@ def combine_general_ts(data_train, data_valid, data_test):
             X_t -- shape: (N, (x, m), t, d_t)
             X_info -- shape: (N, t)
             y -- shape: (N, 1)
+        normalize -- (X_0, X_t)
+            X -- (min, max, cat_axis)
     Returns:
         data -- (X_0t, X_info, y)
-            X_0t -- shape: (N, (x, m), t+1, d_0t)
-            X_info -- shape: (N, t+1)
+            X_0t -- shape: (N, (x, m), 1+t, d_0t)
+            X_info -- shape: (N, 1+t)
             y -- shape: (N, 1)
+        normalize -- (X_0t)
+            X -- (min, max, cat_axis)
     """
 
+    # data
     X_0_train, X_t_train, X_info_train, y_train = data_train
     X_0_valid, X_t_valid, X_info_valid, y_valid = data_valid
     X_0_test, X_t_test, X_info_test, y_test = data_test
@@ -66,9 +71,9 @@ def combine_general_ts(data_train, data_valid, data_test):
     X_0_valid = np.pad(X_0_valid[:, :, np.newaxis, :], pad_width=pad_width_0_valid, mode='constant', constant_values=0)
     X_0_test = np.pad(X_0_test[:, :, np.newaxis, :], pad_width=pad_width_0_test, mode='constant', constant_values=0)
 
-    X_t_train = np.pad(X_t_train[:, :, np.newaxis, :], pad_width=pad_width_t, mode='constant', constant_values=0)
-    X_t_valid = np.pad(X_t_valid[:, :, np.newaxis, :], pad_width=pad_width_t, mode='constant', constant_values=0)
-    X_t_test = np.pad(X_t_test[:, :, np.newaxis, :], pad_width=pad_width_t, mode='constant', constant_values=0)
+    X_t_train = np.pad(X_t_train, pad_width=pad_width_t, mode='constant', constant_values=0)
+    X_t_valid = np.pad(X_t_valid, pad_width=pad_width_t, mode='constant', constant_values=0)
+    X_t_test = np.pad(X_t_test, pad_width=pad_width_t, mode='constant', constant_values=0)
 
     X_0t_train = np.concatenate((X_0_train, X_t_train), axis=-1)
     X_0t_valid = np.concatenate((X_0_valid, X_t_valid), axis=-1)
@@ -82,24 +87,35 @@ def combine_general_ts(data_train, data_valid, data_test):
     data_valid = (X_0t_valid, X_info_valid, y_valid)
     data_test = (X_0t_test, X_info_test, y_test)
 
-    return data_train, data_valid, data_test
+    # normalize
+    X_0_train_normalize, X_t_train_normalize = data_normalize
+    X_0_train_min, X_0_train_max, X_0_cat_axis = X_0_train_normalize
+    X_t_train_min, X_t_train_max, X_t_cat_axis = X_t_train_normalize
+
+    X_train_min = np.concatenate((X_0_train_min, X_t_train_min))
+    X_train_max = np.concatenate((X_0_train_max, X_t_train_max))
+    X_cat_axis = X_0_cat_axis + X_t_cat_axis
+
+    data_normalize = (X_train_min, X_train_max, X_cat_axis)
+
+    return data_train, data_valid, data_test, data_normalize
 
 
 def convert_tensor(data_train, data_valid, data_test, batch_size):
     """
     Arguments:
         data -- (X_0t, X_info, y)
-            X_0t -- shape: (N, (x, m), t+1, d_0t)
-            X_info -- shape: (N, t+1)
+            X_0t -- shape: (N, (x, m), t, d_0t)
+            X_info -- shape: (N, t)
             y -- shape: (N, 1)
     Returns:
         data -- (inputs, outputs)
             inputs -- {"inputs_t", "inputs_time"}
-                inputs_t -- shape: (N, (x, m), t+1, d_0t)
-                inputs_time -- shape: (N, t+1)
+                inputs_t -- shape: (N, (x, m), t, d_0t)
+                inputs_time -- shape: (N, t)
             outputs -- {"pred", "recon"}
                 pred -- shape: (N, 1)
-                recon -- shape: (N, (x, m), t+1, d_0t)
+                recon -- shape: (N, (x, m), t, d_0t)
     """
 
     X_0t_train, X_info_train, y_train = data_train
@@ -135,11 +151,12 @@ dataset_full = "clrc-cea"
 encoding = 'CP949'
 seed = 42
 
+type_clf = 'full'
+mode = 'recon'
+
 epoch = 500
 batch_size = 50
 learning_rate = 0.0001
-
-type_clf = 'full'
 
 lw_pred = 100
 lw_recon = 1
@@ -161,7 +178,7 @@ set_gpu(NUM_GPU)
 
 #%%
 # data_filepath = os.path.join('/', 'home', 'mincheol', 'ext', 'hdd1', 'data', 'CONNECT', 'SMC', '202107')
-# data_train, data_valid, data_test = data_pipeline_v1.clrc_diag(filepath=data_filepath, encoding=encoding, seed=seed)
+# data_train, data_valid, data_test, data_normalize = data_pipeline_v1.clrc_diag(filepath=data_filepath, encoding=encoding, seed=seed)
 
 
 #%%
@@ -172,11 +189,13 @@ with open('./data_preprocessed/clrc-cea/data_valid.pickle', 'rb') as f:
     data_valid = pickle.load(f)
 with open('./data_preprocessed/clrc-cea/data_test.pickle', 'rb') as f:
     data_test = pickle.load(f)
+with open('./data_preprocessed/clrc-cea/data_normalize.pickle', 'rb') as f:
+    data_normalize = pickle.load(f)
 ## <<< [TMP] <<<
 
 
 #%%
-data_train, data_valid, data_test = combine_general_ts(data_train, data_valid, data_test)
+data_train, data_valid, data_test, data_normalize = combine_general_ts(data_train, data_valid, data_test, data_normalize)
 tensor_train, tensor_valid, tensor_test = convert_tensor(data_train, data_valid, data_test, batch_size)
 
 
@@ -201,12 +220,15 @@ with tf.device('/device:GPU:' + str(NUM_GPU)):
                     F1Score(num_classes=1, average='macro', threshold=0.5, name="F1_score")
                     ],
                "recon":
-                   [],
+                   [Mean(name="MAE"),
+                    Mean(name="MSE"),
+                    Mean(name="MRE"),
+                    ],
                }
 
 
 #%%
-filename = (dataset + "_" + model_name +
+filename = (dataset + "_" + model_name + "_" + mode +
             "_e" + str(epoch) + "_b" + str(batch_size) + "_lr" + str(learning_rate) +
             "_lwp" + str(lw_pred) + "_lwr" + str(lw_recon) +
             "_ref" + str(num_ref) + "_t" + str(dim_time) + "_h" + str(num_heads) +
@@ -217,11 +239,16 @@ filename = (dataset + "_" + model_name +
 os.makedirs(os.path.join('.', 'results', dataset_full, 'model_tuning'), exist_ok=True)
 cp_filepath = os.path.join('.', 'results', dataset_full, 'model_tuning', filename + '.h5')
 
-best_val = 0
 early_stop = 0
-early_stop_patience = 50
-history_train = [[], [], [], [], [], [], [], [], []]
-history_valid = [[], [], [], [], [], [], [], [], []]
+if mode == 'pred':
+    best_val = 0
+    early_stop_patience = 50
+else:
+    best_val = np.inf
+    early_stop_patience = 100
+
+history_train = [[], [], [], [], [], [], [], [], [], [], [], []]
+history_valid = [[], [], [], [], [], [], [], [], [], [], [], []]
 
 
 #%%
@@ -247,10 +274,16 @@ for ep in range(1, epoch + 1):
         gradients = tape.gradient(loss_mean, model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
+        metric_mse = utils.MAE(Y_recon, Y_recon_hat)
+        metric_mae = utils.MSE(Y_recon, Y_recon_hat)
+        metric_mre = utils.MRE(Y_recon, Y_recon_hat)
+
         for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon]):
             metric.update_state(loss_type)
         for metric in metrics["pred"]:
             metric.update_state(Y_pred, Y_pred_hat)
+        for metric, loss_type in zip(metrics["recon"], [metric_mse, metric_mae, metric_mre]):
+            metric.update_state(loss_type)
 
     time_end = time.time()
 
@@ -260,7 +293,8 @@ for ep in range(1, epoch + 1):
     print("[Train]")
     print("Time {:.4f} | ".format(time_end - time_start) +
           "".join(["{}: {:4.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["loss"]]) +
-          "".join(["{}: {:.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["pred"]])
+          "".join(["{}: {:.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["pred"]]) +
+          "".join(["{}: {:4.4f} | ".format(metric.name, metric.result().numpy()) for  metric in metrics["recon"]])
           )
 
     ## history
@@ -269,6 +303,9 @@ for ep in range(1, epoch + 1):
         metric.reset_states()
     for i, metric in enumerate(metrics["pred"]):
         history_train[i + len(metrics["loss"])].append(metric.result().numpy())
+        metric.reset_states()
+    for i, metric in enumerate(metrics["recon"]):
+        history_train[i + len(metrics["loss"]) + len(metrics["pred"])].append(metric.result().numpy())
         metric.reset_states()
 
     # Valid
@@ -286,25 +323,41 @@ for ep in range(1, epoch + 1):
 
         loss = lw_pred * loss_pred + lw_recon * loss_recon
 
+        metric_mse = utils.MAE(Y_recon, Y_recon_hat)
+        metric_mae = utils.MSE(Y_recon, Y_recon_hat)
+        metric_mre = utils.MRE(Y_recon, Y_recon_hat)
+
         for metric, loss_type in zip(metrics["loss"], [loss, loss_pred, loss_recon]):
             metric.update_state(loss_type)
         for metric in metrics["pred"]:
             metric.update_state(Y_pred, Y_pred_hat)
+        for metric, loss_type in zip(metrics["recon"], [metric_mse, metric_mae, metric_mre]):
+            metric.update_state(loss_type)
 
     time_end = time.time()
 
-    ## save
-    if metrics["pred"][1].result().numpy() > best_val:
-        model.save_weights(cp_filepath)
+    if mode == 'pred':
+        if metrics["pred"][1].result().numpy() > best_val:
+            model.save_weights(cp_filepath)
 
-        best_val = metrics["pred"][1].result().numpy()
-        early_stop = 0
+            best_val = metrics["pred"][1].result().numpy()
+            early_stop = 0
+    else:
+        if metrics["recon"][1].result().numpy() < best_val:
+            model.save_weights(cp_filepath)
+
+            best_val = metrics["recon"][1].result().numpy()
+            early_stop = 0
 
     ## results
-    print("[Valid] - best val AUROC: {:.4f} - early stop count {}".format(best_val, early_stop))
+    if mode == 'pred':
+        print("[Valid] - best val AUROC: {:.4f} - early stop count {}".format(best_val, early_stop))
+    else:
+        print("[Valid] - best val MSE: {:.4f} - early stop count {}".format(best_val, early_stop))
     print("Time {:.4f} | ".format(time_end - time_start) +
           "".join(["{}: {:4.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["loss"]]) +
-          "".join(["{}: {:.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["pred"]])
+          "".join(["{}: {:.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["pred"]]) +
+          "".join(["{}: {:4.4f} | ".format(metric.name, metric.result().numpy()) for metric in metrics["recon"]])
           )
 
     ## history
@@ -313,6 +366,9 @@ for ep in range(1, epoch + 1):
         metric.reset_states()
     for i, metric in enumerate(metrics["pred"]):
         history_valid[i + len(metrics["loss"])].append(metric.result().numpy())
+        metric.reset_states()
+    for i, metric in enumerate(metrics["recon"]):
+        history_valid[i + len(metrics["loss"]) + len(metrics["pred"])].append(metric.result().numpy())
         metric.reset_states()
 
     ## early stop
@@ -324,15 +380,15 @@ for ep in range(1, epoch + 1):
 
 #%%
 plt_filepath = os.path.join('.', 'results_learning', dataset_full, 'model_tuning')
-utils.plot_learning_full(history_train, history_valid, figsize=(15, 15), save=True, filepath=plt_filepath, filename=filename)
+utils.plot_learning(history_train, history_valid, figsize=(15, 15), save=True, filepath=plt_filepath, filename=filename)
 
 
 #%%
 model.load_weights(cp_filepath)
 
-_, results_train = utils.print_results_full(model, tensor_train, metrics, (lw_pred, lw_recon), stage="Train")
-_, results_valid = utils.print_results_full(model, tensor_valid, metrics, (lw_pred, lw_recon), stage="Valid")
-_, results_test = utils.print_results_full(model, tensor_test, metrics, (lw_pred, lw_recon), stage="Test")
+_, results_train = utils.print_results(model, tensor_train, metrics, (lw_pred, lw_recon), stage="Train")
+_, results_valid = utils.print_results(model, tensor_valid, metrics, (lw_pred, lw_recon), stage="Valid")
+_, results_test = utils.print_results(model, tensor_test, metrics, (lw_pred, lw_recon), stage="Test")
 
 
 #%%
@@ -391,7 +447,7 @@ AUPRC_ci = t_value * AUPRC_std
 
 
 #%%
-results_param = [model_name, type_clf, epoch, batch_size, learning_rate, lw_pred, lw_recon, num_ref, dim_time,
+results_param = [model_name, type_clf, mode, epoch, batch_size, learning_rate, lw_pred, lw_recon, num_ref, dim_time,
                  num_heads, dim_attn, dim_hidden_enc, dim_hidden_dec, dim_ffn, dim_latent, dim_clf]
 results_stats = [AUROC_mean, AUROC_std, AUROC_ci, AUPRC_mean, AUPRC_std, AUPRC_ci]
 csv_write = (results_param + results_train + results_valid + results_test + results_stats)
@@ -410,6 +466,7 @@ with open(results_filepath, 'a') as f:
     writer = csv.writer(f)
     head = ['model_name',
             'model_type',
+            'mode',
             'epoch',
             'batch_size',
             'learning_rate',
