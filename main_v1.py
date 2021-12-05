@@ -222,8 +222,8 @@ with tf.device('/device:GPU:' + str(NUM_GPU)):
                     F1Score(num_classes=1, average='macro', threshold=0.5, name="F1_score"),
                     ],
                "recon":
-                   [Mean(name="MAE"),
-                    Mean(name="MSE"),
+                   [Mean(name="MSE"),
+                    Mean(name="MAE"),
                     Mean(name="MRE"),
                     ],
                }
@@ -342,13 +342,13 @@ for ep in range(1, epoch + 1):
         if metrics["pred"][1].result().numpy() > best_val:
             model.save_weights(cp_filepath)
 
-            best_val = metrics["pred"][1].result().numpy()
+            best_val = metrics["pred"][0].result().numpy()
             early_stop = 0
     else:
         if metrics["recon"][1].result().numpy() < best_val:
             model.save_weights(cp_filepath)
 
-            best_val = metrics["recon"][1].result().numpy()
+            best_val = metrics["recon"][0].result().numpy()
             early_stop = 0
 
     ## results
@@ -382,7 +382,7 @@ for ep in range(1, epoch + 1):
 
 #%%
 plt_filepath = os.path.join('.', 'results_learning', dataset_full, 'model_tuning')
-utils.plot_learning(history_train, history_valid, figsize=(15, 20), save=True, filepath=plt_filepath, filename=filename)
+utils.plot_learning(history_train, history_valid, figsize=(20, 20), save=True, filepath=plt_filepath, filename=filename)
 
 
 #%%
@@ -391,6 +391,182 @@ model.load_weights(cp_filepath)
 _, results_train = utils.print_results(model, tensor_train, metrics, (lw_pred, lw_recon), stage="Train")
 _, results_valid = utils.print_results(model, tensor_valid, metrics, (lw_pred, lw_recon), stage="Valid")
 _, results_test = utils.print_results(model, tensor_test, metrics, (lw_pred, lw_recon), stage="Test")
+
+
+#%%
+## Generation with reference
+def gen_outputs_ref(model, inputs, ref_time):
+    latent = model.enc(inputs)
+
+    q_z_mean, q_z_logvar = latent[:, :, :model.dim_latent], latent[:, :, model.dim_latent:]
+    epsilon = tf.random.normal(tf.shape(q_z_mean), dtype=tf.float32)
+    z = q_z_mean + tf.math.exp(0.5 * q_z_logvar) * epsilon
+
+    outputs_pred_y = model.clf(z)
+
+    inputs_dec = {"latent": z, "outputs_time": ref_time}
+    outputs_pred_x = model.dec(inputs_dec)
+
+    outputs_recon = {"outputs_recon": outputs_pred_x, "q_z_mean": q_z_mean, "q_z_logvar": q_z_logvar}
+    outputs = {"pred": outputs_pred_y, "recon": outputs_recon}
+
+    return outputs
+
+
+def gen_recon(model, tensor, ref_time):
+    Y_preds, Y_recons, Y_recons_time = [], [], []
+    Y_preds_hat, Y_recons_hat, q_z_means, q_z_logvars = [], [], [], []
+    for step, (X, Y) in enumerate(tensor):
+        Y_pred = Y["pred"]
+        Y_recon = Y["recon"]
+        Y_recon_time = X["inputs_time"]
+
+        Y_hat = gen_outputs_ref(model, X, ref_time)
+        Y_pred_hat = Y_hat["pred"]
+        Y_recon_hat = Y_hat["recon"]["outputs_recon"]
+        q_z_mean = Y_hat["recon"]["q_z_mean"]
+        q_z_logvar = Y_hat["recon"]["q_z_logvar"]
+
+        Y_preds.append(Y_pred.numpy())
+        Y_recons.append(Y_recon.numpy())
+        Y_recons_time.append(Y_recon_time.numpy())
+
+        Y_preds_hat.append(Y_pred_hat.numpy())
+        Y_recons_hat.append(Y_recon_hat.numpy())
+        q_z_means.append(q_z_mean.numpy())
+        q_z_logvars.append(q_z_logvar.numpy())
+
+    Y_pred = np.concatenate(Y_preds, axis=0)
+    Y_recon = np.concatenate(Y_recons, axis=0)
+    Y_recon_time = np.concatenate(Y_recons_time, axis=0)
+
+    Y_pred_hat = np.concatenate(Y_preds_hat, axis=0)
+    Y_recon_hat = np.concatenate(Y_recons_hat, axis=0)
+    q_z_mean = np.concatenate(q_z_means, axis=0)
+    q_z_logvar = np.concatenate(q_z_logvars, axis=0)
+
+    return Y_pred, Y_recon, Y_recon_time, Y_pred_hat, Y_recon_hat, q_z_mean, q_z_logvar
+
+
+ref_time = np.linspace(0.0, 5.0, 12 * 5 * 2)
+ref_time_tf = tf.convert_to_tensor(np.expand_dims(ref_time, axis=0))
+
+gen_recon_train = gen_recon(model, tensor_train, ref_time_tf)
+gen_recon_valid = gen_recon(model, tensor_valid, ref_time_tf)
+gen_recon_test = gen_recon(model, tensor_test, ref_time_tf)
+
+X_train_orig = gen_recon_train[1][:, 0, :, :].copy()
+X_valid_orig = gen_recon_valid[1][:, 0, :, :].copy()
+X_test_orig = gen_recon_test[1][:, 0, :, :].copy()
+
+X_train_orig[gen_recon_train[1][:, 1, :, :] == 0] = np.nan
+X_valid_orig[gen_recon_valid[1][:, 1, :, :] == 0] = np.nan
+X_test_orig[gen_recon_test[1][:, 1, :, :] == 0] = np.nan
+
+X_train_orig_time = gen_recon_train[2]
+X_valid_orig_time = gen_recon_valid[2]
+X_test_orig_time = gen_recon_test[2]
+
+X_train_hat = gen_recon_train[4]
+X_valid_hat = gen_recon_valid[4]
+X_test_hat = gen_recon_test[4]
+
+y_train_orig = gen_recon_train[0]
+y_valid_orig = gen_recon_valid[0]
+y_test_orig = gen_recon_test[0]
+
+y_train_hat = gen_recon_train[3]
+y_valid_hat = gen_recon_valid[3]
+y_test_hat = gen_recon_train[3]
+
+
+#%%
+recon_train_data = (X_train_orig, X_train_hat, X_train_orig_time, ref_time, y_train_orig, y_train_hat)
+recon_valid_data = (X_valid_orig, X_valid_hat, X_valid_orig_time, ref_time, y_valid_orig, y_valid_hat)
+recon_test_data = (X_test_orig, X_test_hat, X_test_orig_time, ref_time, y_test_orig, y_test_hat)
+
+sample_idx = 0
+
+plt_recon_filepath = os.path.join('.', 'results', dataset_full, 'model_tuning', filename)
+utils.plot_recon(recon_train_data, sample_idx, 'train', figsize=(10, 50), ylim=True, plot=False, save=True, filepath=plt_recon_filepath)
+
+
+#%%
+with open(os.path.join(plt_recon_filepath, 'recon_train_data.pickle'), 'wb') as f:
+    pickle.dump(recon_train_data, f)
+with open(os.path.join(plt_recon_filepath, 'recon_valid_data.pickle'), 'wb') as f:
+    pickle.dump(recon_valid_data, f)
+with open(os.path.join(plt_recon_filepath, 'recon_test_data.pickle'), 'wb') as f:
+    pickle.dump(recon_test_data, f)
+
+
+#%%
+## Generation synthetic
+def gen_outputs_sampling(model, gen_num, ref_time):
+    p_z_mean = tf.zeros((gen_num, model.num_ref, model.dim_latent), dtype=tf.float32)
+    p_z_logvar = tf.zeros((gen_num, model.num_ref, model.dim_latent), dtype=tf.float32)
+
+    epsilon = tf.random.normal(tf.shape(p_z_mean), dtype=tf.float32)
+    z = p_z_mean + tf.math.exp(0.5 * p_z_logvar) * epsilon
+
+    outputs_pred_y = model.clf(z)
+
+    inputs_dec = {"latent": z, "outputs_time": ref_time}
+    outputs_pred_x = model.dec(inputs_dec)
+
+    outputs_recon = {"outputs_recon": outputs_pred_x, "q_z_mean": p_z_mean, "q_z_logvar": p_z_logvar}
+    outputs = {"pred": outputs_pred_y, "recon": outputs_recon}
+
+    return outputs
+
+
+def gen_synthetic(model, gen_num, gen_batch_size, ref_time):
+    Y_preds_hat, Y_recons_hat, q_z_means, q_z_logvars = [], [], [], []
+    for _ in range(0, gen_num, gen_batch_size):
+        Y_hat = gen_outputs_sampling(model, gen_batch_size, ref_time)
+
+        Y_pred_hat = Y_hat["pred"]
+        Y_recon_hat = Y_hat["recon"]["outputs_recon"]
+        q_z_mean = Y_hat["recon"]["q_z_mean"]
+        q_z_logvar = Y_hat["recon"]["q_z_logvar"]
+
+        Y_preds_hat.append(Y_pred_hat.numpy())
+        Y_recons_hat.append(Y_recon_hat.numpy())
+        q_z_means.append(q_z_mean.numpy())
+        q_z_logvars.append(q_z_logvar.numpy())
+
+    Y_pred_hat = np.concatenate(Y_preds_hat, axis=0)
+    Y_recon_hat = np.concatenate(Y_recons_hat, axis=0)
+    q_z_mean = np.concatenate(q_z_means, axis=0)
+    q_z_logvar = np.concatenate(q_z_logvars, axis=0)
+
+    return Y_pred_hat, Y_recon_hat, q_z_mean, q_z_logvar
+
+
+gen_num = 3000
+gen_batch_size = 100
+
+ref_time = np.linspace(0.0, 5.0, 12 * 5 * 2)
+ref_time_tf = tf.convert_to_tensor(np.expand_dims(ref_time, axis=0))
+
+gen_tilde = gen_synthetic(model, gen_num, gen_batch_size, ref_time_tf)
+
+X_tilde = gen_tilde[1]
+y_tilde = gen_tilde[0]
+
+
+#%%
+gen_synthetic_data = (X_tilde, ref_time, y_tilde)
+
+sample_idx = 0
+
+plt_gen_filepath = os.path.join('.', 'results', dataset_full, 'model_tuning', filename)
+utils.plot_gen(gen_synthetic_data, sample_idx, figsize=(10, 50), ylim=True, plot=False, save=True, filepath=plt_gen_filepath)
+
+
+#%%
+with open(os.path.join(plt_gen_filepath, 'gen_synthetic_data.pickle'), 'wb') as f:
+    pickle.dump(gen_synthetic_data, f)
 
 
 #%%
@@ -517,6 +693,3 @@ with open(results_filepath, 'a') as f:
             'test_AUPRC_std',
             'test_AUPRC_ci']
     writer.writerow(head)
-
-
-#%%

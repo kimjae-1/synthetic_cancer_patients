@@ -228,6 +228,8 @@ def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False
     print("{} {:<10}".format(stage, "MSE"), results[11])
     print("{} {:<10}".format(stage, "MAE"), results[12])
     print("{} {:<10}".format(stage, "MRE4"), results[13])
+    print("{} {:<10}".format(stage, "NLL"), results[3])
+    print("{} {:<10}".format(stage, "KL"), results[4])
     print()
     print("{} {:<10}".format(stage, "AUROC"), results[6])
     print("{} {:<10}".format(stage, "AUPRC"), results[7])
@@ -278,3 +280,132 @@ def print_results(model, tensor, metrics, loss_weight, stage="Train", plot=False
         plot_results(pr_results[1], pr_results[0], plot_type="AUPRC", save=save, filepath=filepath, filename=filename)
 
     return (auroc, auprc, roc_results, pr_results), results
+
+
+def plot_recon(data, idx, data_type, figsize=(10, 50), ylim=True, plot=True, save=False, filepath='.'):
+    mpl.rcParams['figure.figsize'] = figsize
+    plt.clf()
+
+    X_orig, X_hat, X_orig_time, ref_time, y_orig, y_hat = data
+
+    label = [
+        'age',
+        'sex_F',
+        'sex_M',
+        'C18.0',
+        'C18.1',
+        'C18.2',
+        'C18.3',
+        'C18.4',
+        'C18.5',
+        'C18.6',
+        'C18.7',
+        'C18.8',
+        'C18.9',
+        'C19.9',
+        'C20.9',
+        'ALP',
+        'ALT',
+        'AST',
+        'Albumin',
+        # 'Anti-HBs Antibody',
+        # 'Anti-HCV Antibody',
+        # 'Anti-HIV combo',
+        'BUN',
+        'Bilirubin',
+        'CA 19-9',
+        'CEA',
+        'CRP',
+        'ESR',
+        # 'HBsAg',
+        'Protein',
+    ]
+
+    for i in range(X_orig.shape[-1]):
+        plt.subplot(X_orig.shape[-1], 1, i + 1)
+
+        plt.plot(X_orig_time[idx], X_orig[idx, :, i], 'x', color='red')
+        plt.plot(ref_time, X_hat[idx, :, i], color='blue')
+
+        if ylim:
+            plt.ylim(-0.2, 1.2)
+
+        plt.xlabel('year')
+        plt.ylabel(label[i])
+
+    plt.tight_layout()
+
+    if save:
+        filename = (data_type + '_idx' + str(idx) + '_ylim' + str(int(ylim)) +
+                    '_dead' + str(y_orig[idx, 0]) + '_pred' + str(round(y_hat[idx, 0], 2)) + '.png')
+
+        os.makedirs(filepath, exist_ok=True)
+        filepath = os.path.join(filepath, filename)
+        plt.savefig(filepath)
+
+    if plot:
+        plt.show()
+
+
+def plot_gen(data, idx, figsize=(10, 50), ylim=True, plot=True, save=False, filepath='.'):
+    mpl.rcParams['figure.figsize'] = figsize
+    plt.clf()
+
+    X_tilde, ref_time, y_tilde = data
+
+    label = [
+        'age',
+        'sex_F',
+        'sex_M',
+        'C18.0',
+        'C18.1',
+        'C18.2',
+        'C18.3',
+        'C18.4',
+        'C18.5',
+        'C18.6',
+        'C18.7',
+        'C18.8',
+        'C18.9',
+        'C19.9',
+        'C20.9',
+        'ALP',
+        'ALT',
+        'AST',
+        'Albumin',
+        # 'Anti-HBs Antibody',
+        # 'Anti-HCV Antibody',
+        # 'Anti-HIV combo',
+        'BUN',
+        'Bilirubin',
+        'CA 19-9',
+        'CEA',
+        'CRP',
+        'ESR',
+        # 'HBsAg',
+        'Protein',
+    ]
+
+    for i in range(X_tilde.shape[-1]):
+        plt.subplot(X_tilde.shape[-1], 1, i + 1)
+
+        plt.plot(ref_time, X_tilde[idx, :, i], color='green')
+
+        if ylim:
+            plt.ylim(-0.2, 1.2)
+
+        plt.xlabel('year')
+        plt.ylabel(label[i])
+
+    plt.tight_layout()
+
+    if save:
+        filename = ('gen' + '_idx' + str(idx) + '_ylim' + str(int(ylim)) +
+                    '_pred' + str(round(y_tilde[idx, 0], 2)) + '.png')
+
+        os.makedirs(filepath, exist_ok=True)
+        filepath = os.path.join(filepath, filename)
+        plt.savefig(filepath)
+
+    if plot:
+        plt.show()
