@@ -501,6 +501,15 @@ with open(os.path.join(plt_recon_filepath, 'recon_test_data.pickle'), 'wb') as f
 
 
 #%%
+with open(os.path.join(plt_recon_filepath, 'recon_train_data.pickle'), 'rb') as f:
+    recon_train_data = pickle.load(f)
+with open(os.path.join(plt_recon_filepath, 'recon_valid_data.pickle'), 'rb') as f:
+    recon_valid_data = pickle.load(f)
+with open(os.path.join(plt_recon_filepath, 'recon_test_data.pickle'), 'rb') as f:
+    recon_test_data = pickle.load(f)
+
+
+#%%
 ## Generation synthetic
 def gen_outputs_sampling(model, gen_num, ref_time):
     p_z_mean = tf.zeros((gen_num, model.num_ref, model.dim_latent), dtype=tf.float32)
@@ -567,6 +576,11 @@ utils.plot_gen(gen_synthetic_data, sample_idx, figsize=(10, 50), ylim=True, plot
 #%%
 with open(os.path.join(plt_gen_filepath, 'gen_synthetic_data.pickle'), 'wb') as f:
     pickle.dump(gen_synthetic_data, f)
+
+
+#%%
+with open(os.path.join(plt_gen_filepath, 'gen_synthetic_data.pickle'), 'rb') as f:
+    gen_synthetic_data = pickle.load(f)
 
 
 #%%
