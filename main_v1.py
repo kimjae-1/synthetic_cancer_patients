@@ -143,7 +143,7 @@ def convert_tensor(data_train, data_valid, data_test, batch_size):
 
 
 #%%
-NUM_GPU = 0
+NUM_GPU = 1
 
 # Dataset: CEA
 dataset = "cea"
@@ -492,6 +492,31 @@ utils.plot_recon(recon_train_data, sample_idx, 'train', figsize=(10, 50), ylim=T
 
 
 #%%
+real = recon_train_data[0][sample_idx, 0, :]
+fake = recon_train_data[1][sample_idx, 0, :]
+
+real_cont = np.array(list(real[:1]) + list(real[15:]))
+fake_cont = np.array(list(fake[:1]) + list(fake[15:]))
+
+X_train_min, X_train_max, _ = data_normalize
+
+real_cont_denorm = real_cont * (X_train_max - X_train_min) + X_train_min
+fake_cont_denorm = fake_cont * (X_train_max - X_train_min) + X_train_min
+
+#
+real_time = recon_train_data[2]
+
+real = recon_train_data[0][sample_idx, 1, :]
+fake = recon_train_data[1][sample_idx, 1, :]
+
+real_cont = np.array(list(real[:1]) + list(real[15:]))
+fake_cont = np.array(list(fake[:1]) + list(fake[15:]))
+
+real_cont * (X_train_max - X_train_min) + X_train_min
+fake_cont * (X_train_max - X_train_min) + X_train_min
+
+
+#%%
 with open(os.path.join(plt_recon_filepath, 'recon_train_data.pickle'), 'wb') as f:
     pickle.dump(recon_train_data, f)
 with open(os.path.join(plt_recon_filepath, 'recon_valid_data.pickle'), 'wb') as f:
@@ -571,6 +596,16 @@ sample_idx = 0
 
 plt_gen_filepath = os.path.join('.', 'results', dataset_full, 'model_tuning', filename)
 utils.plot_gen(gen_synthetic_data, sample_idx, figsize=(10, 50), ylim=True, plot=False, save=True, filepath=plt_gen_filepath)
+
+
+#%%
+fake2 = gen_synthetic_data[0][sample_idx, 0, :]
+
+fake2_cont = np.array(list(fake2[:1]) + list(fake2[15:]))
+
+X_train_min, X_train_max, _ = data_normalize
+
+fake2_cont_denorm = fake_cont * (X_train_max - X_train_min) + X_train_min
 
 
 #%%
