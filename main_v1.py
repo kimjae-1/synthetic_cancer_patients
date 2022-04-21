@@ -479,7 +479,8 @@ y_train_hat = gen_recon_train[3]
 y_valid_hat = gen_recon_valid[3]
 y_test_hat = gen_recon_train[3]
 
-
+q_z_mean = gen_recon_train[5]
+q_z_logvar = gen_recon_train[6]
 #%%
 recon_train_data = (X_train_orig, X_train_hat, X_train_orig_time, ref_time, y_train_orig, y_train_hat)
 recon_valid_data = (X_valid_orig, X_valid_hat, X_valid_orig_time, ref_time, y_valid_orig, y_valid_hat)
@@ -533,12 +534,45 @@ with open(os.path.join(plt_recon_filepath, 'recon_valid_data.pickle'), 'rb') as 
 with open(os.path.join(plt_recon_filepath, 'recon_test_data.pickle'), 'rb') as f:
     recon_test_data = pickle.load(f)
 
+## update
+q_z_mean_mean = q_z_mean.mean(axis = 0)
+q_z_mean_std = q_z_mean.std(axis = 0)
+
+mean = []
+for i in range(q_z_mean_mean.shape[0]):
+  for j in range(q_z_mean_mean.shape[1]):
+    mu = q_z_mean_mean[i,j]
+    sigma = q_z_mean_std[i,j]
+    mean_sample = tf.random.normal([1],mu,sigma, tf.float32)
+    mean.append(mean_sample)
+
+mean = np.array(mean).reshape(q_z_mean_mean.shape[0]),q_z_mean_mean.shape[1])
+
+q_z_logvar_mean = q_z_logvar.mean(axis = 0)
+q_z_logvar_std = q_z_logvar.std(axis = 0)
+
+logvar = []
+for i in range(q_z_logvar_mean.shape[0]):
+  for j in range(q_z_logvar_mean.shape[1]):
+    mu = q_z_logvar_mean[i,j]
+    sigma = q_z_logvar_std[i,j]
+    std_sample = tf.random.normal([1],mu,sigma, tf.float32)
+    logvar.append(std_sample)
+
+logvar = np.array(logvar).reshape(q_z_logvar_mean.shape[0],q_z_logvar_mean.shape[1])
+
+def sampling_data(data,gen_num):
+  list = []
+  for i in range(gen_num):
+    list.append(data)
+  list = tf.constant(list)
+  return list
 
 #%%
 ## Generation synthetic
 def gen_outputs_sampling(model, gen_num, ref_time):
-    p_z_mean = tf.zeros((gen_num, model.num_ref, model.dim_latent), dtype=tf.float32)
-    p_z_logvar = tf.zeros((gen_num, model.num_ref, model.dim_latent), dtype=tf.float32)
+    p_z_mean = sampling_data(mean,gen_num)
+    p_z_logvar = sampling_data(logvar, gen_num)
 
     epsilon = tf.random.normal(tf.shape(p_z_mean), dtype=tf.float32)
     z = p_z_mean + tf.math.exp(0.5 * p_z_logvar) * epsilon
