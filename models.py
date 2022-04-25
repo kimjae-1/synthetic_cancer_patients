@@ -1,3 +1,6 @@
+## Original model
+## https://github.com/reml-lab/mTAN
+
 import tensorflow as tf
 from tensorflow.keras import Model, Sequential
 from tensorflow.keras.layers import Layer, Dense, GRU, Bidirectional

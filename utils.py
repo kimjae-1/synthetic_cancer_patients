@@ -308,16 +308,12 @@ def plot_recon(data, idx, data_type, figsize=(10, 50), ylim=True, plot=True, sav
         'ALT',
         'AST',
         'Albumin',
-        # 'Anti-HBs Antibody',
-        # 'Anti-HCV Antibody',
-        # 'Anti-HIV combo',
         'BUN',
         'Bilirubin',
         'CA 19-9',
         'CEA',
         'CRP',
         'ESR',
-        # 'HBsAg',
         'Protein',
     ]
 
@@ -326,14 +322,6 @@ def plot_recon(data, idx, data_type, figsize=(10, 50), ylim=True, plot=True, sav
 
         plt.plot(X_orig_time[idx], X_orig[idx, :, i], 'x', color='red')
         plt.plot(ref_time, X_hat[idx, :, i], color='blue')
-
-        # if i < 15:
-        #     plt.plot(X_orig_time[idx, 0], X_orig[idx, 0, i], 'x', color='red')
-        #     plt.plot(ref_time[0], X_hat[idx, 0, i], 'o', markersize=3, color='blue')
-        #     plt.xlim(-0.3, 5.3)
-        # else:
-        #     plt.plot(X_orig_time[idx], X_orig[idx, :, i], 'x', color='red')
-        #     plt.plot(ref_time, X_hat[idx, :, i], color='blue')
 
         if ylim:
             plt.ylim(-0.2, 1.2)
@@ -381,16 +369,12 @@ def plot_gen(data, idx, figsize=(10, 50), ylim=True, plot=True, save=False, file
         'ALT',
         'AST',
         'Albumin',
-        # 'Anti-HBs Antibody',
-        # 'Anti-HCV Antibody',
-        # 'Anti-HIV combo',
         'BUN',
         'Bilirubin',
         'CA 19-9',
         'CEA',
         'CRP',
         'ESR',
-        # 'HBsAg',
         'Protein',
     ]
 
@@ -398,12 +382,6 @@ def plot_gen(data, idx, figsize=(10, 50), ylim=True, plot=True, save=False, file
         plt.subplot(X_tilde.shape[-1], 1, i + 1)
 
         plt.plot(ref_time, X_tilde[idx, :, i], color='green')
-
-        # if i < 15:
-        #     plt.plot(ref_time[0], X_tilde[idx, 0, i], 'o', markersize=3, color='green')
-        #     plt.xlim(-0.3, 5.3)
-        # else:
-        #     plt.plot(ref_time, X_tilde[idx, :, i], color='green')
 
         if ylim:
             plt.ylim(-0.2, 1.2)
@@ -423,3 +401,8 @@ def plot_gen(data, idx, figsize=(10, 50), ylim=True, plot=True, save=False, file
 
     if plot:
         plt.show()
+
+def set_gpu(num_gpu=0):
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_visible_devices(gpus[num_gpu], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[num_gpu], True)
