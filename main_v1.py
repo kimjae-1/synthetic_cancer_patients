@@ -52,6 +52,30 @@ utils.set_gpu(NUM_GPU)
 data_filepath = os.path.join(os.getcwd(),'data')
 data_train, data_valid, data_test, data_normalize = data_pipeline_v1.clrc_diag(filepath=data_filepath, encoding=encoding, seed=seed)
 
+# pickle
+# path = os.getcwd()+'/pickle'
+# os.makedirs(path, exist_ok=True)
+# 
+# # 저장
+# with open(os.path.join(os.getcwd(),'pickle', 'data_train.pickle'), 'wb') as f:
+#     pickle.dump(data_train, f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_valid.pickle'), 'wb') as f:
+#     pickle.dump(data_valid, f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_test.pickle'), 'wb') as f:
+#     pickle.dump(data_test, f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_normalize.pickle'), 'wb') as f:
+#     pickle.dump(data_normalize, f)
+
+# # 불러오기
+# with open(os.path.join(os.getcwd(),'pickle', 'data_train.pickle'), 'rb') as f:
+#     data_train = pickle.load(f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_valid.pickle'), 'rb') as f:
+#     data_valid = pickle.load(f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_test.pickle'), 'rb') as f:
+#     data_test = pickle.load(f)
+# with open(os.path.join(os.getcwd(),'pickle', 'data_normalize.pickle'), 'rb') as f:
+#     data_normalize = pickle.load(f)
+
 data_train, data_valid, data_test, data_normalize = data_pipeline_v1.combine_general_ts(data_train, data_valid, data_test, data_normalize)
 
 tensor_train, tensor_valid, tensor_test = data_pipeline_v1.convert_tensor(data_train, data_valid, data_test, batch_size)
@@ -290,8 +314,8 @@ utils.plot_recon(recon_train_data, sample_idx, 'train', figsize=(10, 50), ylim=T
 real = recon_train_data[0][sample_idx, 0, :]
 fake = recon_train_data[1][sample_idx, 0, :]
 
-real_cont = np.array(list(real[:1]) + list(real[15:]))
-fake_cont = np.array(list(fake[:1]) + list(fake[15:]))
+real_cont = np.array(list(real[:1]) + list(real[6:]))
+fake_cont = np.array(list(fake[:1]) + list(fake[6:]))
 
 X_train_min, X_train_max, _ = data_normalize
 
@@ -366,7 +390,7 @@ utils.plot_gen(gen_synthetic_data, sample_idx, figsize=(10, 50), ylim=True, plot
 #%% 합성 데이터 denormalize(일부 값 확인)
 fake2 = gen_synthetic_data[0][sample_idx, 0, :]
 
-fake2_cont = np.array(list(fake2[:1]) + list(fake2[15:]))
+fake2_cont = np.array(list(fake2[:1]) + list(fake2[6:]))
 
 X_train_min, X_train_max, _ = data_normalize
 
